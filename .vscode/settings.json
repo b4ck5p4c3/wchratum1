@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "ch32v30x.h": "c",
+        "debug.h": "c",
+        "ethernet.h": "c",
+        "stdint.h": "c",
+        "string.h": "c",
+        "packet.h": "c"
+    }
+}
