@@ -3,9 +3,11 @@
 
 #include "dhcp.h"
 #include "ethernet.h"
+#include "ethaddr.h"
 #include "random.h"
+#include "esig.h"
 
-const MACAddress kMACAddress = {.bytes = {0x38, 0x8f, 0x45, 0x16, 0x5e, 0xf6}};
+MACAddress kMACAddress;
 
 void EthernetPHYLinkChangeInterrupt(bool phy_link_ready) {
   if (phy_link_ready) {
@@ -55,15 +57,29 @@ void ProcessDHCP() {
   }
 }
 
+static void PrintUniID(void) {
+  printf("Data0: %04x\r\n", OB->Data0);
+  printf("Data1: %04x\r\n", OB->Data1);
+  printf("FlaCap: %04x\r\n", R16_ESIG_FLACAP());
+  printf("UniID1: %08lx\r\n", R32_ESIG_UNIID1());
+  printf("UniID2: %08lx\r\n", R32_ESIG_UNIID2());
+  printf("UniID3: %08lx\r\n", R32_ESIG_UNIID3());
+}
+
 int main() {
   SystemCoreClockUpdate();
   Delay_Init();
   USART_Printf_Init(115200);
   RandomInitialize();
 
-  printf("Initializing\n");
-  printf("Clock: %lu\n", SystemCoreClock);
+  printf("Initializing\r\n");
+  printf("Clock: %lu\r\n", SystemCoreClock);
+  PrintUniID();
 
+  MacAddressInitialize(kMACAddress.bytes, 0);
+  printf("MAC: %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+         kMACAddress.bytes[0], kMACAddress.bytes[1], kMACAddress.bytes[2],
+         kMACAddress.bytes[3], kMACAddress.bytes[4], kMACAddress.bytes[5]);
   EthernetInitialize(&kMACAddress);
 
   for (;;) {
