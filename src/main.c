@@ -5,7 +5,9 @@
 #include "ethernet.h"
 #include "ethaddr.h"
 #include "random.h"
+#include "prng.h"
 #include "esig.h"
+#include "chaskey.h"
 
 MACAddress kMACAddress;
 
@@ -66,15 +68,59 @@ static void PrintUniID(void) {
   printf("UniID3: %08lx\r\n", R32_ESIG_UNIID3());
 }
 
+static const uint32_t STK_CTLR_STCLK = UINT32_C(1) << 2; // 0: HCLK/8, 1: HCLK serves as time base.
+static const uint32_t STK_CTLR_STE = UINT32_C(1) << 0; // 0: counter stops, 1: STK enabled.
+
+static void uBench(void) {
+  const unsigned count = 4096;
+  SysTick->CTLR |= STK_CTLR_STE;
+  const unsigned shift = (SysTick->CTLR & STK_CTLR_STCLK) ? 0 : 3;
+  uint32_t tmp = PcgUInt32(), msg[4], key[4];
+  for (int i = 0; i < 4; i++)
+    msg[i] = PcgUInt32(), key[i] = PcgUInt32();
+  const uint64_t start = SysTick->CNT;
+  for (unsigned i = count; i; i--) {
+    switch (5) {
+      case 1:
+        tmp ^= SysTick->CNT;  // 6 ticks, same for ^=, += and *=
+        break;
+      case 2:
+        chaskey8(msg, key);  // 262 ticks
+        break;
+      case 3:
+        tmp += RandomUInt32();  // ~48 ticks
+        break;
+      case 4:
+        tmp += CSPrngUInt64();  // 267 ticks
+        break;
+      case 5:
+        tmp += PcgUInt32();  // 27 ticks
+        break;
+      default:
+        __NOP();  // ~4.00 tick/call
+    }
+  }
+  const uint64_t end = SysTick->CNT;
+  const uint64_t dt = end - start;
+  const uint64_t dtick = dt << shift;
+  const float perop = ((float)dtick) / count;
+  printf("uBench: %lu dt%s\r\n", (uint32_t)dt, (dt >> 32) ? " WARN: 64-bit!" : "");
+  printf("uBench: ~%lu tick%s\r\n", (uint32_t)dtick, (dtick >> 32) ? " WARN: 64-bit!" : "");
+  printf("uBench: ~%d.%02d tick/call\r\n", (int)perop, (int)(perop * 100) % 100);
+  printf("uBench: 0x%lx goats teleported\r\n", tmp ^ msg[0] ^ key[0]);
+}
+
 int main() {
   SystemCoreClockUpdate();
   Delay_Init();
   USART_Printf_Init(115200);
   RandomInitialize();
+  PrngInit();
 
   printf("Initializing\r\n");
   printf("Clock: %lu\r\n", SystemCoreClock);
   PrintUniID();
+  uBench();
 
   MacAddressInitialize(kMACAddress.bytes, 0);
   printf("MAC: %02x:%02x:%02x:%02x:%02x:%02x\r\n",
