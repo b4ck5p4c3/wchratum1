@@ -1,5 +1,6 @@
 #include "dhcp.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "ethernet.h"
