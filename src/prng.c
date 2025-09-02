@@ -1,6 +1,7 @@
 #include "prng.h"
 #include "random.h"
 #include "chaskey.h"
+#include "systick.h"
 
 #define inline static inline // due to lack of PCG_INLINE and PCG_EXTERN_INLINE
 #include "pcg_variants.h"
@@ -9,7 +10,6 @@
 #include <ch32v30x.h>
 
 static uint32_t kPrngKey[4];
-static uint32_t kCtrHigh, kCtrLow;
 static pcg32i_random_t pcg32;
 
 void PrngInit() {
@@ -19,22 +19,23 @@ void PrngInit() {
     ctx[i] = RandomUInt32();
   }
   chaskey8(kPrngKey, ctx);  // making key unbiased
-  kCtrHigh = kCtrLow = 0;
 
   uint64_t hilo = CSPrngUInt64();
   pcg32i_srandom_r(&pcg32, (uint32_t)(hilo >> 32), (uint32_t)(hilo));
 }
 
 uint64_t CSPrngUInt64() {
-  kCtrLow++;
-  kCtrHigh += !kCtrLow;
-  return chaskey8_64x64(kCtrLow, kCtrHigh, kPrngKey);
+  uint64_t hilo = SysTickCnt64();
+  uint32_t hi = hilo >> 32;
+  uint32_t lo = hilo;
+  return chaskey8_64x64(lo, hi, kPrngKey);
 }
 
 uint64_t CSPrngUInt64x2(uint32_t dst[2]) {
-  kCtrLow++;
-  kCtrHigh += !kCtrLow;
-  return chaskey8_64x128(dst, kCtrLow, kCtrHigh, kPrngKey);
+  uint64_t hilo = SysTickCnt64();
+  uint32_t hi = hilo >> 32;
+  uint32_t lo = hilo;
+  return chaskey8_64x128(dst, lo, hi, kPrngKey);
 }
 
 uint16_t PcgUInt16() {
