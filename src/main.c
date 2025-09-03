@@ -81,7 +81,21 @@ typedef enum {
   callCSPrngUInt64,
   callCSPrngUInt64x2,
   callPcgUInt32,
+  callCksumAlign0,
+  callCksumAlign1,
+  callCksumAlign2,
+  callCksumAlign3,
 } uBenchEnum;
+
+static uint32_t cksum32(uintptr_t begini) {
+  uint32_t *begin = (uint32_t*)begini;
+  uint32_t ret = 0;
+  for (unsigned i = 0; i < 12*1024; i++)
+    ret ^= begin[i];
+  return ret;
+}
+
+#define RAMADDRSTART UINT32_C(0x20000000)
 
 static void uBench(void) {
   const unsigned count = 4096;
@@ -91,8 +105,9 @@ static void uBench(void) {
   for (int i = 0; i < 4; i++)
     msg[i] = PcgUInt32(), key[i] = PcgUInt32();
   const uint64_t start = SysTick->CNT;
+  const uBenchEnum bno = callCksumAlign0;
   for (unsigned i = count; i; i--) {
-    switch (callPcgUInt32) {
+    switch (bno) {
       case readSysTick:
         tmp ^= SysTick->CNT;  // 6 ticks, same for ^=, += and *=
         break;
@@ -117,6 +132,18 @@ static void uBench(void) {
       case callPcgUInt32:
         tmp += PcgUInt32();  // 27 ticks
         break;
+    case callCksumAlign0:
+        tmp ^= cksum32(0+RAMADDRSTART); // ~61449 tick/call, 5 tick/op
+        break;
+    case callCksumAlign1:
+        tmp ^= cksum32(1+RAMADDRSTART); // ~196616 tick/call, 16 tick/op
+        break;
+    case callCksumAlign2:
+        tmp ^= cksum32(2+RAMADDRSTART); // ~98312 tick/call, 8 tick/op
+        break;
+    case callCksumAlign3:
+        tmp ^= cksum32(3+RAMADDRSTART); // ~196616 tick/call, 16 tick/op
+        break;
       default:
         __NOP();  // ~4.00 tick/call
     }
@@ -125,7 +152,7 @@ static void uBench(void) {
   const uint64_t dt = end - start;
   const uint64_t dtick = dt << shift;
   const float perop = ((float)dtick) / count;
-  printf("uBench: %lu dt%s\r\n", (uint32_t)dt, (dt >> 32) ? " WARN: 64-bit!" : "");
+  printf("uBench: %lu dt bench #%d%s\r\n", (uint32_t)dt, bno, (dt >> 32) ? " WARN: 64-bit!" : "");
   printf("uBench: ~%lu tick%s\r\n", (uint32_t)dtick, (dtick >> 32) ? " WARN: 64-bit!" : "");
   printf("uBench: ~%d.%02d tick/call\r\n", (int)perop, (int)(perop * 100) % 100);
   for (int i = 0; i < 4; i++)
@@ -154,6 +181,13 @@ void TickLoop(void) {
   }
 }
 
+void HardFault_Handler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
+void HardFault_Handler(void) {
+    for (int i = 0; i < 48; i++)
+        printf("HardFault!\r\n");
+    while (1) { }
+}
+
 int main() {
   SystemCoreClockUpdate();
   Delay_Init();
@@ -161,7 +195,7 @@ int main() {
   RandomInitialize();
   PrngInit();
 
-  printf("Initializing\r\n");
+  printf("Initializing boot #%lu\r\n", PcgUInt32());
   printf("Clock: %lu\r\n", SystemCoreClock);
   PrintUniID();
   uBench();
