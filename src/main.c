@@ -9,6 +9,7 @@
 #include "esig.h"
 #include "chaskey.h"
 #include "systick.h"
+#include "prdk.h"
 
 MACAddress kMACAddress;
 
@@ -68,9 +69,6 @@ static void PrintUniID(void) {
   printf("UniID2: %08lx\r\n", R32_ESIG_UNIID2());
   printf("UniID3: %08lx\r\n", R32_ESIG_UNIID3());
 }
-
-static const uint32_t STK_CTLR_STCLK = UINT32_C(1) << 2; // 0: HCLK/8, 1: HCLK serves as time base.
-static const uint32_t STK_CTLR_STE = UINT32_C(1) << 0; // 0: counter stops, 1: STK enabled.
 
 typedef enum {
   readSysTick,
@@ -160,27 +158,6 @@ static void uBench(void) {
   printf("uBench: 0x%lx goats teleported\r\n", tmp); // ensure that code is not optimized out
 }
 
-void TickLoop(void) {
-  SysTick->CTLR |= STK_CTLR_STCLK;
-  uint64_t prev = SysTickCnt64();
-  bool skip_one = false;
-  for (;;) {
-    uint64_t next = SysTickCnt64();
-    uint64_t dt = next - prev;
-    uint32_t hiDt = dt >> 32, loDt = dt;
-    uint32_t hiPrev = prev >> 32, loPrev = prev;
-    uint32_t hiNext = next >> 32, loNext = next;
-    if (!skip_one && (hiDt > 0 || loDt > 0x20 || hiPrev != hiNext)) {
-      printf("Tick of %08lx_%08lx from 0x%08lx_%08lx to 0x%08lx_%08lx\r\n", hiDt, loDt,
-             hiPrev, loPrev, hiNext, loNext);
-      skip_one = true;
-    } else {
-      skip_one = false;
-    }
-    prev = next;
-  }
-}
-
 void HardFault_Handler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 void HardFault_Handler(void) {
     for (int i = 0; i < 48; i++)
@@ -198,6 +175,7 @@ int main() {
   printf("Initializing boot #%lu\r\n", PcgUInt32());
   printf("Clock: %lu\r\n", SystemCoreClock);
   PrintUniID();
+  SysTickDebugMain();  // does not return if enabled
   uBench();
 
   MacAddressInitialize(kMACAddress.bytes, 0);
@@ -205,7 +183,6 @@ int main() {
          kMACAddress.bytes[0], kMACAddress.bytes[1], kMACAddress.bytes[2],
          kMACAddress.bytes[3], kMACAddress.bytes[4], kMACAddress.bytes[5]);
   EthernetInitialize(&kMACAddress);
-  TickLoop();
 
   for (;;) {
     printf("Running: %d\n", EthernetTransmit(kTestPacket, sizeof(kTestPacket) - 1));

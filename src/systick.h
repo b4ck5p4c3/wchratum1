@@ -3,6 +3,9 @@
 
 #include <ch32v30x.h>
 
+static const uint32_t STK_CTLR_STE = UINT32_C(1) << 0; // 0: counter stops, 1: STK enabled.
+static const uint32_t STK_CTLR_STCLK = UINT32_C(1) << 2; // 0: HCLK/8, 1: HCLK serves as time base.
+
 static inline uint32_t SysTickCnt32(void) {
   vu32 *lohi = (vu32*)&SysTick->CNT;
   return lohi[0];
@@ -22,5 +25,7 @@ static inline uint64_t SysTickCnt64(void) {
   uint32_t hi = (lo & 0x80000000) ? hiBefore : hiAfter;
   return (((uint64_t)hi) << 32) | lo;
 }
+
+void SysTickDebugMain(void);
 
 #endif // 1D827417_88B9_4A3D_84C5_FB9E83DFA122

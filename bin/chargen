@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import socket
+import sys
+
+SVC_CHARGEN = 19
+ETHERMTU_UDP = 1472
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Do ping-pong with UDP chargen at WCHratum1"
+    )
+    parser.add_argument(
+        "--pipe",
+        metavar="int",
+        default=2,  # to compensate for low LAN RTT and keep TxRx busy
+        type=int,
+        help="number of requests to pipeline",
+    )
+    req = parser.add_mutually_exclusive_group(required=True)
+    req.add_argument("--trng", action="store_true", help="Use on-chip True RNG")
+    req.add_argument("--pcg32", action="store_true", help="Use PCG32-RXS-M-XS")
+    req.add_argument("--pcg16", action="store_true", help="Use PCG16-XSH-RS")
+    req.add_argument("--chaskey", action="store_true", help="Use Chaskey8-CTR")
+    parser.add_argument("HOST", type=socket.gethostbyname, help="Host to query")
+    args = parser.parse_args()
+
+    if args.trng:
+        req = b"T"
+    elif args.pcg32:
+        req = b"P"
+    elif args.pcg16:
+        req = b"p"
+    elif args.chaskey:
+        req = b"C"
+    else:
+        parser.error("WUT RNG")
+    print("Sending request", req, "to", args.HOST, file=sys.stderr)
+
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0) as sock, os.fdopen(
+        sys.stdout.fileno(), "wb", closefd=False
+    ) as stdout:
+        sock.bind(("0.0.0.0", 0))
+        sock.connect((args.HOST, SVC_CHARGEN))
+        sock.setsockopt(socket.SOL_IP, socket.IP_TTL, 255)
+        for _ in range(args.pipe - 1):
+            sock.send(req)
+        while True:
+            sock.send(req)
+            dat = sock.recv(ETHERMTU_UDP)
+            stdout.write(dat)
+            stdout.flush()
+
+
+if __name__ == "__main__":
+    main()
