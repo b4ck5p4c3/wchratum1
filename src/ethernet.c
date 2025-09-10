@@ -1,6 +1,8 @@
 #include "ethernet.h"
 #include "prdk.h"
 #include "inline.h"
+#include "systick.h"
+#include "prng.h"
 #include <ch32v30x.h>
 #include <stdint.h>
 #include <string.h>
@@ -431,6 +433,7 @@ bool EthernetTransmit(const uint8_t* packet, uint32_t length) {
 __attribute__((weak)) void EthernetPHYLinkChangeInterrupt(bool phy_link_ready) {}
 
 __attribute__((interrupt("WCH-Interrupt-fast"))) void ETH_IRQHandler() {
+  const uint32_t IRQTick = SysTickCnt32();
   uint32_t status = ETH->DMASR;
 
   // Note well, MMCI, PMTI and TSTI are unconditionally enabed.
@@ -495,4 +498,5 @@ __attribute__((interrupt("WCH-Interrupt-fast"))) void ETH_IRQHandler() {
     // ETH_DMAITConfig() does not enable ETH_DMA_IT_ER (DMASR[14]: Early receive interrupt)
     ETH_DMAClearITPendingBit(ETH_DMA_IT_NIS);
   }
+  CSPrngInjectLowbits(IRQTick);
 }

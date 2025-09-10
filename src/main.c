@@ -103,7 +103,7 @@ static void uBench(void) {
   for (int i = 0; i < 4; i++)
     msg[i] = PcgUInt32(), key[i] = PcgUInt32();
   const uint64_t start = SysTick->CNT;
-  const uBenchEnum bno = callCksumAlign0;
+  const uBenchEnum bno = callRandomUInt32;
   for (unsigned i = count; i; i--) {
     switch (bno) {
       case readSysTick:
@@ -125,10 +125,10 @@ static void uBench(void) {
         tmp += CSPrngUInt64();
         break;
       case callCSPrngUInt64x2:
-        tmp += CSPrngUInt64(msg);
+        tmp += CSPrngUInt64x2(msg);
         break;
       case callPcgUInt32:
-        tmp += PcgUInt32();  // 27 ticks
+        tmp += PcgUInt32();
         break;
     case callCksumAlign0:
         tmp ^= cksum32(0+RAMADDRSTART); // ~61449 tick/call, 5 tick/op
@@ -185,6 +185,7 @@ int main() {
   EthernetInitialize(&kMACAddress);
 
   for (;;) {
+    CSPrngInjectRandom();
     printf("Running: %d\n", EthernetTransmit(kTestPacket, sizeof(kTestPacket) - 1));
     ProcessDHCP();
     Delay_Ms(1000);

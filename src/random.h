@@ -4,6 +4,6 @@
 #include <stdint.h>
 
 void RandomInitialize();
-uint32_t RandomUInt32(); // ~48.70 tick/call
+uint32_t RandomUInt32();  // ~44.80 tick/call
 
 #endif
